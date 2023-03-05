@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_dynamic_links/firebase_dynamic_links.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:persentilizlem/core/services/backup/repoForFire.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
@@ -10,15 +9,28 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 class FirebaseAuthLogin {
    FirebaseAuthLogin();
   static FirebaseAuth? auth = FirebaseAuth.instance;
-  static void authwithMail({required String mail, required String sifre})async {
+
+  static Future<String> authwithMail({required String mail, required String sifre})async {
+    String islemsonucu;
     try{
-    await auth!.signInWithEmailAndPassword(email: mail, password: sifre);
+    await auth!.signInWithEmailAndPassword(email: mail.trim(), password: sifre.trim());
+    islemsonucu = "Giriş tamamlandı";
     }
-    catch(e){
-    print(e);
+    on FirebaseException catch(e){
+
+      if (e.code == 'user-not-found') {
+       islemsonucu ='Kayıtlı değilsiniz. Üye olun!.';
+      } else if (e.code == 'wrong-password') {
+       islemsonucu ='Hatalı şifre.';
+      }
+      else islemsonucu = "Bilinmeyen bir hata oluştu";
+
     }
+    return islemsonucu;
   }
- static void authwithGoogleSilent() async {
+
+ static Future<String> authwithGoogle() async {
+    String islemtamam;
     try {
       GoogleSignInAccount? _userinGoogle = await GoogleSignIn().signIn();
       GoogleSignInAuthentication? _googleAuth =
@@ -29,11 +41,17 @@ class FirebaseAuthLogin {
       );
       await auth
           ?.signInWithCredential(credential);
+
+      islemtamam = 'islem tamamlandi';
     } on FirebaseAuthException catch (e) {
-      print(e);
+      print(e.code);
+      islemtamam = 'Bir sorun oluştu';
     }
+    return islemtamam;
   }
-  static void authwithApple() async {
+ static Future<String> authwithApple() async {
+    String islemtamam;
+
     /// Generates a cryptographically secure random nonce, to be included in a
     /// credential request.
     String generateNonce([int length = 32]) {
@@ -68,18 +86,24 @@ class FirebaseAuthLogin {
         idToken: credential.identityToken,
         rawNonce: rawNonce,
       );
-
       await auth?.signInWithCredential(oauthCredential);
+      islemtamam = 'İşlem tamam';
     } on FirebaseAuthException catch (e) {
-      print(e);
+      print(e.code);
+      islemtamam = 'Bir hata oluştu';
     }
+    return islemtamam;
   }
-  static void createnewAccountWithMail({required String email, required String password})async{
-    await auth!.createUserWithEmailAndPassword(email: email, password: password);
+ static void createnewAccountWithMail({required String email, required String password})async{
+    await auth!.createUserWithEmailAndPassword(email: email.trim(), password: password.trim());
   }
+ static Future<void> isLogin() async{
+    auth!.authStateChanges().listen((event) {
+      print(event);
+    });
+ }
  static void logOut() async {
     auth?.signOut();
-    print(await auth?.currentUser?.uid);
   }
   static void forgetPassword (String email)async {
 
@@ -91,14 +115,10 @@ class FirebaseAuthLogin {
       iOSBundleId: 'com.pediatrirutinleri.prwatch',
       handleCodeInApp: true,
     );
-    auth!.sendPasswordResetEmail(email: email,actionCodeSettings: actionCodeSettings);
-    FirebaseDynamicLinks dynamicLinks = FirebaseDynamicLinks.instance;
+    auth!.sendPasswordResetEmail(email: email.trim(),actionCodeSettings: actionCodeSettings);
 
-/* auth!.checkActionCode(code);
- auth!.applyActionCode(code);*/
   }
  static void forgetMe()async{
-
    auth!.currentUser!.delete();
  }
  static void deleteMeandMyData()async{

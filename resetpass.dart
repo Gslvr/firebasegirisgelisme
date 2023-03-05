@@ -1,25 +1,25 @@
+import 'dart:ui';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_dynamic_links/firebase_dynamic_links.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
 import 'package:persentilizlem/util/widgets/myappbars.dart';
-
 import 'yedekgirissayfasi.dart';
 
-class ResetPassword extends StatefulWidget {
-  ResetPassword(this.oobCode);
-
-  String? oobCode;
+class ResetPassword extends ConsumerStatefulWidget {
+  ResetPassword({Key? key, this.oobcode}) : super(key: key);
+  String? oobcode;
 
   @override
-  State<StatefulWidget> createState() => _ResetPasswordState();
+  _ResetPasswordState createState() => _ResetPasswordState();
 }
 
-class _ResetPasswordState extends State<ResetPassword> {
+class _ResetPasswordState extends ConsumerState<ResetPassword> {
   final _formKey = GlobalKey<FormState>();
   FirebaseAuth? auth;
-  String? oobCode;
   String? isresetPass;
   bool isobsecure = true;
   IconData? issecureIcon = Icons.remove_red_eye_sharp;
@@ -28,28 +28,29 @@ class _ResetPasswordState extends State<ResetPassword> {
   @override
   void initState() {
     auth = FirebaseAuth.instance;
-
+    WidgetsBinding.instance.addPostFrameCallback((timeStamp) async {});
     super.initState();
   }
 
-/*  Future<void> initDynamicLinks() async {
-    dynamicLinks.onLink.listen((dynamicLinkData) async{
-    isresetPass = dynamicLinkData.link.queryParameters['mode'];
-    oobCode = widget.oobCode??dynamicLinkData.link.queryParameters['oobCode'];
-    print(oobCode);
-    });
-  }*/
-
   @override
   Widget build(BuildContext context) {
-    oobCode = widget.oobCode ?? null;
     return Material(
       child: Scaffold(
         appBar: MyAppBars(
-          title:'Şifrenizi Değiştirin', ctx: context,
-          goBack: IconButton(onPressed: (){
-            Navigator.push(context, MaterialPageRoute(builder: (context)=>FireBaseBackUpSystem()));
-          }, icon: Icon(Icons.arrow_back_ios_new,color: Colors.black87,),),
+          title: 'Şifrenizi Değiştirin',
+          ctx: context,
+          goBack: IconButton(
+            onPressed: () {
+              Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => FireBaseBackUpSystem()));
+            },
+            icon: Icon(
+              Icons.login,
+              color: Colors.black87,
+            ),
+          ),
         ),
         body: Builder(
           builder: (BuildContext context) {
@@ -61,24 +62,32 @@ class _ResetPasswordState extends State<ResetPassword> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        LottieBuilder.network("https://assets8.lottiefiles.com/packages/lf20_ed9hgtrb.json",repeat: false),
+                        LottieBuilder.network(
+                            "https://assets8.lottiefiles.com/packages/lf20_ed9hgtrb.json",
+                            repeat: false),
                         Container(
-                          height: 50,
+                          height: 75,
                           child: TextFormField(
                             onSaved: (String? value) async {
                               try {
-                                if (value != null &&
-                                    value != '' &&
-                                    oobCode != null) {
-                                  await auth!.confirmPasswordReset(
-                                      code: oobCode ?? '', newPassword: value);
-                                  Navigator.of(context).push(MaterialPageRoute(
-                                      builder: (context) =>
-                                          FireBaseBackUpSystem()));
+                                if (widget.oobcode != null) {
+                                  if (value != null && value != '') {
+                                    await auth!.confirmPasswordReset(
+                                        code: widget.oobcode ?? '',
+                                        newPassword: value);
+                                    Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                            builder: (context) =>
+                                                FireBaseBackUpSystem()));
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                        buildSnackBarMessage(
+                                            'Şifreniz boş olamaz'));
+                                  }
                                 } else {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                       buildSnackBarMessage(
-                                          'Şifreniz boş olamaz'));
+                                          'Güncelleme kodu hatalı ve ya eksik'));
                                 }
                               } on FirebaseAuthException catch (e) {
                                 if (e.code == 'invalid-action-code') {
@@ -102,21 +111,25 @@ class _ResetPasswordState extends State<ResetPassword> {
                               }
                               ;
                             },
-                            style: GoogleFonts.acme(
+                            style: GoogleFonts.lobster(
                                 color: Colors.black87, fontSize: 24),
                             obscureText: isobsecure,
                             decoration: InputDecoration(
                               labelText: 'Şifre',
+                              labelStyle: GoogleFonts.playfairDisplay(
+                                fontSize: 32,
+                                color: Colors.grey.withOpacity(0.6)
+                              ),
                               suffix: IconButton(
                                 onPressed: () {
                                   setState(() {
                                     isobsecure = !isobsecure;
                                     issecureIcon = isobsecure != false
-                                        ? Icons.security
-                                        : Icons.remove_red_eye;
+                                        ? Icons.visibility_off
+                                        : Icons.visibility;
                                   });
                                 },
-                                icon: Icon(Icons.remove_red_eye),
+                                icon: Icon(issecureIcon),
                               ),
                               enabledBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(5)),
@@ -125,12 +138,17 @@ class _ResetPasswordState extends State<ResetPassword> {
                             ),
                           ),
                         ),
-                        SizedBox(height: 20,),
+                        SizedBox(
+                          height: 20,
+                        ),
                         ElevatedButton(
                             onPressed: () {
                               _formKey.currentState!.save();
                             },
-                            child: Text("Şifre Değiştir",style: GoogleFonts.acme( ),))
+                            child: Text(
+                              "Şifre Değiştir",
+                              style: TextStyle(color: Colors.black87,fontSize: 24),
+                            ))
                       ],
                     )),
               ),

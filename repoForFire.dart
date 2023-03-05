@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:persentilizlem/asilar/Model/asiHelperForCalendar.dart';
@@ -11,154 +13,164 @@ import 'forLogin.dart';
 FirebaseFirestore _firestore = FirebaseFirestore.instance;
 FirebaseAuth _auth = FirebaseAuth.instance;
 DatabaseHelper databaseHelper = DatabaseHelper();
-class RepoForFireBackUp{
 
-
-  Future<List<HastaListeModel>> hastalistesi() async{
+class RepoForFireBackUp {
+  Future<List<HastaListeModel>> hastalistesi() async {
     return await databaseHelper.hastaListesi();
   }
-  Future<List<AtesTakip>> ateslistesi()async{
+
+  Future<List<AtesTakip>> ateslistesi() async {
     return databaseHelper.atesListesiYedekicin();
   }
-  Future<List<HastaVerilerModeli>> olcumlistesi()async{
+
+  Future<List<HastaVerilerModeli>> olcumlistesi() async {
     return databaseHelper.persentillerYedekicin();
   }
-  Future<List<Asi>> asilistesi()async{
+
+  Future<List<Asi>> asilistesi() async {
     return databaseHelper.asiLarYedekicin();
   }
 }
 
 class FirebaseYedekAlVer {
   FirebaseYedekAlVer();
- static String? userUid ({required FirebaseAuth auth}){
-   return auth.currentUser?.uid;
- }
- //// user add to firebase
- static void addUser ({required List<HastaListeModel> liste, required FirebaseAuth auth}){
-   String? uid = FirebaseYedekAlVer.userUid(auth: auth);
-   for (var list in liste){
-     _firestore.collection(uid!).doc("Hastaliste").collection("${list.hastaID}").doc('${list.hastaID}').set(
-         list.toMap()!
-     );
-   }
-   print("işlem tamamlandı");
- }
- //// fever add to firebase
-  static void addFever ({required List<AtesTakip> liste, required FirebaseAuth auth}){
-   String? uid = FirebaseYedekAlVer.userUid(auth: auth);
-   for (var list in liste){
-     _firestore.collection(uid!).doc("Ates").collection("${list.hastaId}").doc('${list.id}').set(
-         list.toJson()
-     );
-   }
-   print("işlem tamamlandı");
- }
- /// vaccine add to firebase
-  static void addVaccine ({required List<Asi> liste, required FirebaseAuth auth}){
-   String? uid = FirebaseYedekAlVer.userUid(auth: auth);
-   for (var list in liste){
-     _firestore.collection(uid!).doc("Asi").collection("${list.hastaid}").doc('${list.id}').set(
-         list.toJson()
-     );
-   }
-   print("işlem tamamlandı");
- }
- /// centiles add to firease
-  static void addPers ({required List<HastaVerilerModeli> liste, required FirebaseAuth auth}){
-   String? uid = FirebaseYedekAlVer.userUid(auth: auth);
-   for (var list in liste){
-     _firestore.collection(uid!).doc("Centiles").collection("${list.hastaId}").doc('${list.veriID}').set(
-         list.toMap()!
-     );
-   }
-   print("işlem tamamlandı");
- }
 
- static void deleteMyData()async{
-   String? uid;
-   List<String> basliklar = ['Asi','Ates','Centiles','Hastaliste'];
-   final batch = _firestore.batch();
-   uid = FirebaseAuthLogin.auth!.currentUser!.uid;
-   if (FirebaseAuthLogin.auth !=null) {
-     if (FirebaseAuthLogin.auth!.currentUser !=null)
-       basliklar.forEach((element) async{
-         print("$element siliniyor");
-         var snapshotdata = await _firestore.collection(uid!).doc(element).collection('1').get();
-         for (var data in snapshotdata.docs){
-
-          await data.reference.delete();
-         }
-         print("Silindi");
-       });
-
-   
-    }
+  static String? userUid({required FirebaseAuth auth}) {
+    return auth.currentUser?.uid;
   }
+
+   /////tüm listeyi alıp verileri json çevirip tek seferde kayıt ve tek seferde yükleme yapmayı deneyeceğiz.okuma yazma sayısını azaltmak için
+  static Future<bool> addDataOncetime() async {
+    bool islemtamam = false;
+    DatabaseHelper _databasehelper = DatabaseHelper();
+    Map<String, dynamic> veriler;
+    //// hasta listesini ayarla
+    List<HastaListeModel> _hastalistesi =
+        await RepoForFireBackUp().hastalistesi();
+    List<Map<String, dynamic>> hastamapList = [];
+    for (var hasta in _hastalistesi) {
+      hasta != null ? hastamapList.add(hasta.toMap()!) : null;
+    }
+//////////////
+    ///////ateş takipleri
+
+    List<AtesTakip> _ateslistesi = await RepoForFireBackUp().ateslistesi();
+    List<Map<String, dynamic>> atesmapList = [];
+    for (var data in _ateslistesi) {
+      data != null ? atesmapList.add(data.toJson()) : null;
+    }
+    ///////////
+    /////ölçüm listesi
+    List<HastaVerilerModeli> _perslistesi =
+        await RepoForFireBackUp().olcumlistesi();
+    List<Map<String, dynamic>> olcumlistesi = [];
+    for (var data in _perslistesi) {
+      data != null ? olcumlistesi.add(data.toMap()!) : null;
+    }
+    ///////
+
+    /////aşı listesi
+    List<Asi> _vaccinelistesi = await RepoForFireBackUp().asilistesi();
+    List<Map<String, dynamic>> asilistesi = [];
+    for (var data in _vaccinelistesi) {
+      data != null ? asilistesi.add(data.toJson()) : null;
+    }
+    //////
+    veriler = {
+      'hastalistesi': hastamapList,
+      'takiplistesi': olcumlistesi,
+      'atestakipleri': atesmapList,
+      'asilistesi': asilistesi
+    };
+    var jsondata = jsonEncode(veriler);
+    try {
+      var uid = _auth.currentUser!.uid;
+      if (uid != null) {
+        _firestore.collection(uid).doc("hastadata").set({
+          'data': jsondata,
+          'eklemezamani': DateTime.now().millisecondsSinceEpoch
+        }).whenComplete(() {
+          islemtamam = true;
+          print("işlem tamam");
+        });
+      }
+    } on FirebaseAuthException catch (e) {
+      print(e);
+      islemtamam = false;
+    }
+    return islemtamam;
+  }
+
+  static Future<DateTime?>? showCurrentTime() async {
+    String? uid = FirebaseYedekAlVer.userUid(auth: _auth);
+    DateTime? resulttime;
+    try {
+      var time = await _firestore.collection(uid!).doc('hastadata').get();
+      if (time.data() != null) {
+        int? result = time['eklemezamani'] ?? null;
+        resulttime =
+            result != null ? DateTime.fromMillisecondsSinceEpoch(result) : null;
+      }
+    } on FirebaseException catch (e) {
+      print(e.code);
+    }
+    return resulttime;
+  }
+
+  static Future<bool?> deleteMyData() async {
+    String? uid;
+    late bool islemok;
+    islemok = false;
+    uid = FirebaseAuthLogin.auth!.currentUser!.uid;
+    try{
+      if (FirebaseAuthLogin.auth != null) {
+        if (FirebaseAuthLogin.auth!.currentUser != null) {
+          await _firestore.collection(uid).doc('hastadata').delete();
+          islemok = true;
+        } else {
+          islemok = false;
+        }
+      } else {
+        islemok = false;
+      }
+    }
+   on FirebaseException catch(e){
+    islemok = false;
+    }
+
+
+    return  islemok;
+  }
+
   ////////////////download and re-write backUp
 
-static void readData ()async{
-  String uid = FirebaseYedekAlVer.userUid(auth: _auth)!;
-  int? sonhastaid = await databaseHelper.sonHastaid()??2;
+  static void readData() async {
+    String uid = FirebaseYedekAlVer.userUid(auth: _auth)!;
 
+    var collection = await _firestore.collection('$uid').doc('hastadata').get();
+    if (collection != null) {
+      var collectiondata = collection.data();
+      var veri = collectiondata != null ? collectiondata['data'] : null;
+      if (veri != null) {
+        var jsondata = jsonDecode(veri);
 
-  //// Aşı için
-  //önce verileri sil
-  databaseHelper.tumAsilariveritabanisil();
-  for (var i = 0;i< sonhastaid;i++) {
-      var collection =
-          await _firestore.collection('$uid').doc('Asi').collection("$i").get();
-      for (var data in collection.docs) {
-        Asi _asidata = Asi.fromJson(data.data());
-        ////veritabanına ekle
-        databaseHelper.asiTekEkle(hastaid: i, asi: _asidata);
+    for (var data in jsondata['hastalistesi']) {
+          databaseHelper.hastaEkle(HastaListeModel.fromMap(data));
+        }
+
+        for (var data in jsondata['asilistesi']) {
+          databaseHelper.asiYedektenYukle(asiListesi: Asi.fromJson(data));
+        }
+
+        for (var data in jsondata['atestakipleri']) {
+          databaseHelper.atesiVerisiEkle(atesTakip: AtesTakip.fromMap(data));
+        }
+        for (var data in jsondata['takiplistesi']) {
+          databaseHelper.hastaveriEkle(HastaVerilerModeli.fromMap(data));
+        }
       }
+
     }
 
-
-  //// ateş için
-  /// önce verileri sil tekrar olmasın
-  databaseHelper.ateslerisil();
-  for (var i = 0;i<= sonhastaid;i++) {
-      var collection =
-          await _firestore.collection('$uid').doc('Ates').collection("$i").get();
-      for (var data in collection.docs) {
-        AtesTakip _atesdata = AtesTakip.fromMap(data.data());
-
-        ////veritabanına ekle
-        databaseHelper.atesiVerisiEkle(atesTakip: _atesdata).whenComplete(() => print("işlem tamamlandı"));
-      }
-    }
-
-
-  /// persentiller
-  /// Önce persentilleri sil
-  databaseHelper.tumhastaverileriSil();
-  for (var i = 0;i<= sonhastaid;i++) {
-    var collection =
-    await _firestore.collection('$uid').doc('Centiles').collection("$i").get();
-    for (var data in collection.docs) {
-      HastaVerilerModeli _atesdata = HastaVerilerModeli.fromMap(data.data());
-
-      ////veritabanına ekle
-      databaseHelper.hastaveriEkle(_atesdata).whenComplete(() => print("işlem tamamlandı"));
-    }
   }
-  
-  
-  /// hastanın verileri
-  /// Önce  sil
-  databaseHelper.hastatamaminisil();
-  for (var i = 0;i<= sonhastaid;i++) {
-    var collection =
-    await _firestore.collection('$uid').doc('Hastaliste').collection("$i").get();
-    for (var data in collection.docs) {
-      HastaListeModel _hastadata = HastaListeModel.fromMap(data.data());
-
-      ////veritabanına ekle
-      databaseHelper.hastaEkle(_hastadata).whenComplete(() => print("işlem tamamlandı"));
-    }
-  }
-}
-
-
 }
